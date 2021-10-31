@@ -1,9 +1,7 @@
-import 'dart:async';
+import 'dart:developer';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:pusher_client/pusher_client.dart';
-// import 'package:pusher_websocket_flutter/pusher.dart';
 
 void main() {
   runApp(MyApp());
@@ -15,43 +13,11 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  GlobalKey key = GlobalKey();
-  late Channel channel;
   late PusherClient pusher;
-  StreamController _streamController = StreamController();
-  bool connected = false;
+  late Channel channel;
 
-  void connect() async {
-    setState(() => connected = true);
-    await pusher.connect();
-    channel = pusher.subscribe("channel");
-    channel.bind("event", (PusherEvent? event) {
-      _streamController.sink.add(event!.data!);
-      ScaffoldMessenger.of(key.currentContext!).showSnackBar(SnackBar(content: Text(event.data!)));
-    });
-  }
-
-  @override
-  void dispose() {
-    _streamController.close();
-    super.dispose();
-  }
-
-  void disconnect() {
-    setState(() => connected = false);
-    pusher.disconnect();
-  }
-
-  // void sendMessage() => channel.trigger('event', 'data');
-
-  void init() {
-    pusher = PusherClient(
-        // TODO: AppKey from Pusher
-        '',
-        // TODO: Cluster from Pusher
-        PusherOptions(cluster: 'eu'),
-        autoConnect: false);
-  }
+  String AUTH_URL = 'https://afaqalsyola.online/api/broadcasting/auth';
+  String BEARER_TOKEN = '9|jNL6MpxPXU8uTNiMftgEPK15Lmltiu5Ru2W6TtUh"';
 
   @override
   void initState() {
@@ -59,72 +25,92 @@ class _MyAppState extends State<MyApp> {
     init();
   }
 
+  void init() async {
+    pusher = new PusherClient(
+        "local",
+        PusherOptions(
+          // cluster: 'eu'
+          wssPort: 6001,
+          wsPort: 6001,
+          host: 'afaqalsyola.online',
+          encrypted: false,
+          // auth: PusherAuth(
+          //   'https://afaqalsyola.online/api/broadcasting/auth',
+          //   headers: {
+          //     'Authorization': 'Bearer $BEARER_TOKEN',
+          //     'Content-Type': 'application/json',
+          //     'Accept': 'application/json'
+          //   },
+          // ),
+        ),
+        enableLogging: true,
+        autoConnect: false
+    );
+    await pusher.connect();
+
+    channel = pusher.subscribe("public-channel");
+
+    pusher.onConnectionStateChange((state) {
+      log("previousState: ${state!.previousState}, currentState: ${state.currentState}");
+    });
+
+    pusher.onConnectionError((error) {
+      log("error: ${error!.message}");
+    });
+
+    channel.bind('PublicEvent', (event) {
+      log("Order Filled Event" + event!.data.toString());
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        key: key,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              StreamBuilder(
-                stream: _streamController.stream,
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) return Text(snapshot.data.toString());
-                  return SizedBox();
-                },
-              ),
-              connected
-                  ? ElevatedButton(
-                      onPressed: disconnect,
-                      child: Text('Disconnect!'),
-                    )
-                  : ElevatedButton(
-                      onPressed: connect,
-                      child: Text('Connect!'),
-                    ),
-              // ElevatedButton(onPressed: sendMessage, child: Text('Send!')),
-            ],
-          ),
+        appBar: AppBar(
+          title: const Text('Example Pusher App'),
         ),
+        body: Center(
+            child: Column(
+              children: [
+                ElevatedButton(
+                  child: Text('Unsubscribe Presence'),
+                  onPressed: () {
+                    pusher.unsubscribe("presence-presence-channel.2");
+                    pusher.disconnect();
+                  },
+                ),
+                ElevatedButton(
+                  child: Text('Unbind Status Update'),
+                  onPressed: () {
+                    channel.unbind('status-update');
+                  },
+                ),
+                ElevatedButton(
+                  child: Text('Unbind Order Filled'),
+                  onPressed: () {
+                    channel.unbind('order-filled');
+                  },
+                ),
+                ElevatedButton(
+                  child: Text('Bind Status Update'),
+                  onPressed: () {
+                    channel.bind('status-update', (PusherEvent? event) {
+                      log("Status Update Event" + event!.data.toString());
+                    });
+                  },
+                ),
+                ElevatedButton(
+                  child: Text('Trigger Client Typing'),
+                  onPressed: () {
+                    // channel.trigger('client-istyping', {'name': 'Bob'});
+                    final id = pusher.getSocketId();
+                    print(id);
+                  },
+                ),
+              ],
+            )),
       ),
     );
   }
 }
-
-// void main() {
-//   runApp(MyApp());
-// }
-//
-// class MyApp extends StatefulWidget {
-//   @override
-//   _MyAppState createState() => _MyAppState();
-// }
-//
-// class _MyAppState extends State<MyApp> {
-//   @override
-//   void initState() {
-//     super.initState();
-//     Pusher.init('a34d16a300ef31e103b8', PusherOptions(cluster: 'eu'));
-//     Pusher.connect(
-//       onConnectionStateChange: (v) {
-//         print(v.currentState);
-//       },
-//     );
-//
-//     Pusher.subscribe('channel').then((value) {
-//       value.bind('event', (v) {
-//         print(v.data);
-//       });
-//     });
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       home: Text('Home'),
-//     );
-//   }
-// }
-//
